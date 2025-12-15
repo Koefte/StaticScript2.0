@@ -1,0 +1,19 @@
+{
+  "name": "static-script",
+  "version": "1.0.0",
+  "description": "TypeScript project",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsc && node dist/index.js",
+    "watch": "tsc --watch"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^25.0.2",
+    "typescript": "^5.3.3"
+  }
+}
