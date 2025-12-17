@@ -7,7 +7,6 @@ const inputCode = fs.readFileSync(process.cwd().toString() + '/'+ inputFilePath,
 const tokenizer = new Tokenizer(inputCode);
 const tokens = tokenizer.tokenize();
 const parser = new Parser(tokens);
-console.log(Tokenizer.toString(tokens))
 const ast = parser.parse();
 Parser.print(ast);
 Parser.checkTypes(ast);

@@ -1,2 +1,1 @@
-number x = 2 + 3;
-number y = "Hello" + "World";
+number y = 1 > 2 ? 3 > 4 ? 5 : 6 : 7;

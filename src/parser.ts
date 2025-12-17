@@ -62,6 +62,14 @@ export class Parser{
                 const binaryNode = node as BinaryExpressionNode;
                 const leftType = this.getType(binaryNode.left);
                 const rightType = this.getType(binaryNode.right);
+                if(binaryNode.operator == '>' || binaryNode.operator == '<' || binaryNode.operator == '>=' || binaryNode.operator == '<='){
+                    if(leftType === 'number' && rightType === 'number'){
+                        return 'boolean';
+                    }
+                    else{
+                        throw new Error(`Type mismatch in binary expression: ${leftType} ${binaryNode.operator} ${rightType}`);
+                    }
+                }
                 if(leftType === rightType){
                     return leftType;
                 }
@@ -71,6 +79,20 @@ export class Parser{
             case 'UnaryExpression':
                 const unaryNode = node as UnaryExpressionNode;
                 return this.getType(unaryNode.argument);
+            case 'TernaryExpression':
+                const ternaryNode = node as TernaryNode;
+                const condType = this.getType(ternaryNode.condition);
+                const trueType = this.getType(ternaryNode.trueExpr);
+                const falseType = this.getType(ternaryNode.falseExpr);
+                if(condType !== 'boolean'){
+                    throw new Error(`Condition of ternary expression must be boolean, got ${condType}`);
+                }
+                if(trueType === falseType){
+                    return trueType;
+                }
+                else{
+                    throw new Error(`Type mismatch in ternary expression: ${trueType} ? ${falseType}`);
+                }
             case 'VariableDecNode':
                 throw new Error('Cannot assign to variable decleration')
         }
@@ -87,6 +109,11 @@ export class Parser{
             case 'Assignment':
                 this.print((node as AssignmentNode).lhs, newIndent);
                 this.print((node as AssignmentNode).rhs, newIndent);
+                break;
+            case 'TernaryExpression':
+                this.print((node as TernaryNode).condition, newIndent);
+                this.print((node as TernaryNode).trueExpr, newIndent);
+                this.print((node as TernaryNode).falseExpr, newIndent);
                 break;
             case 'BinaryExpression':
                 this.print((node as BinaryExpressionNode).left, newIndent); 
@@ -115,7 +142,38 @@ export class Parser{
 
     }
 
-    private parseExpression(tokens: Token[]): Node {
+    private parseExpression(tokens: Token[]): Node{
+        // Check for ternary operator
+        let pos = 0;
+        while(pos < tokens.length) {
+            let currentToken = tokens[pos];
+            if(currentToken.type == TokenType.QuestionMark){
+                const condition = this.parseExpression(tokens.slice(0, pos));
+                const trueTokens = tokens.slice(pos +1, Tokenizer.next(tokens,pos+1,TokenType.Colon,TokenType.QuestionMark,TokenType.Colon));
+                if(trueTokens[trueTokens.length -1].type == TokenType.Colon){
+                    trueTokens.pop();
+                }
+                console.log('True Tokens: ' + Tokenizer.toString(trueTokens));
+                const falseTokens = tokens.slice(Tokenizer.next(tokens,pos+1,TokenType.Colon,TokenType.QuestionMark,TokenType.Colon));
+                if(falseTokens[0].type == TokenType.Colon){
+                    falseTokens.shift();
+                }
+                console.log('False Tokens: ' + Tokenizer.toString(falseTokens));
+                const trueExpr = this.parseExpression(trueTokens);
+                const falseExpr = this.parseExpression(falseTokens);
+                return {
+                    type: 'TernaryExpression',
+                    condition: condition,
+                    trueExpr: trueExpr,
+                    falseExpr: falseExpr
+                } as TernaryNode;
+            }
+            pos++;
+        }
+        return this.parseExpressionInner(tokens);
+    }
+
+    private parseExpressionInner(tokens: Token[]): Node {
         if(tokens.length == 1) {
             if (tokens[0].type == TokenType.Identifier) {
                 return {
@@ -124,9 +182,17 @@ export class Parser{
                 } as IdentifierNode;
             }
             else if (tokens[0].type == TokenType.Number || tokens[0].type == TokenType.String || tokens[0].type == TokenType.Boolean) {
+                let value: string | number | boolean;
+                if(tokens[0].type == TokenType.Number) {
+                    value = Number(tokens[0].value);
+                } else if(tokens[0].type == TokenType.Boolean) {
+                    value = tokens[0].value === 'true';
+                } else {
+                    value = tokens[0].value;
+                }
                 return {
                     type: 'Literal',
-                    value: tokens[0].value
+                    value: value
                 } as LiteralNode;
             }
         }
@@ -202,11 +268,9 @@ export interface VariableDecNode extends Node {
 }
 
 
-export type AstNode =
-    | RootNode
-    | AssignmentNode
-    | IdentifierNode
-    | LiteralNode
-    | BinaryExpressionNode
-    | UnaryExpressionNode
-    | VariableDecNode;
+export interface TernaryNode extends Node {
+    type: 'TernaryExpression';
+    condition: Node;
+    trueExpr: Node;
+    falseExpr: Node;
+}

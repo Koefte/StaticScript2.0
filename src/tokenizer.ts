@@ -12,6 +12,8 @@ export enum TokenType {
     Cbrace,
     Comma,
     Semicolon,
+    QuestionMark,
+    Colon,
     BinaryOperator,
     UnaryOperator,
     Equals,
@@ -74,6 +76,64 @@ export class Tokenizer {
             else if (this.isLetter(this.currentChar)) {
                 this.tokens.push(this.tokenizeIdentifier());
             }
+            else if(this.currentChar == '>' || this.currentChar == '<') {
+                // Tokenize greater than and less than as binary operators
+                const start = this.position;
+                const startLine = this.line;
+                let value = this.currentChar;
+                this.advance();
+                let char = this.currentChar;
+                if(char == '=' ) {
+                    value += this.currentChar;
+                    this.advance();
+                }
+                this.tokens.push({ type: TokenType.BinaryOperator, value, position: start, line: startLine });
+            }
+            else if(this.currentChar == '=' ) {
+                // Tokenize equals as either Equals or BinaryOperator
+                const start = this.position;
+                const startLine = this.line;
+                let value = this.currentChar;
+                this.advance();
+                let char = this.currentChar;
+                if(char == '=' ) {
+                    value += this.currentChar;
+                    this.advance();
+                    this.tokens.push({ type: TokenType.BinaryOperator, value, position: start, line: startLine });
+                } else {
+                    this.tokens.push({ type: TokenType.Equals, value, position: start, line: startLine });
+                }
+            }
+            else if(this.currentChar == '!' ) {
+                // Tokenize not equals as BinaryOperator
+                const start = this.position;
+                const startLine = this.line;
+                let value = this.currentChar;
+                this.advance();
+                let char = this.currentChar;
+                if(char == '=' ) {
+                    value += this.currentChar;
+                    this.advance();
+                    this.tokens.push({ type: TokenType.BinaryOperator, value, position: start, line: startLine });
+                } else {
+                    this.tokens.push({ type: TokenType.UnaryOperator, value, position: start, line: startLine });
+                }
+            }
+            else if(this.currentChar == '&' || this.currentChar == '|') {
+                // Tokenize logical operators as BinaryOperator
+                const start = this.position;
+                const startLine = this.line;
+                let value = this.currentChar;
+                this.advance();
+                let char = this.currentChar;
+                if(char == this.currentChar ) {
+                    value += this.currentChar;
+                    this.advance();
+                    this.tokens.push({ type: TokenType.BinaryOperator, value, position: start, line: startLine });
+                } else {
+                    this.tokens.push({ type: TokenType.BinaryOperator, value, position: start, line: startLine });
+                }
+            }
             else if (this.isDigit(this.currentChar)) {
                 this.tokens.push(this.tokenizeNumber());
             }
@@ -106,6 +166,24 @@ export class Tokenizer {
         for(let i = fromIndex; i < tokens.length; i++) {
             if(tokens[i].type === TokenType.Semicolon) {
                 return i;
+            }
+        }
+        return tokens.length -1;
+    }
+
+    public static next(tokens: Token[], fromIndex: number, type: TokenType,nester: TokenType,unnester: TokenType): number {
+        let nestLevel = 0;
+        for(let i = fromIndex; i < tokens.length; i++) {
+            if(tokens[i].type === nester) {
+                nestLevel++;
+            }
+            else if(tokens[i].type === type) {
+                if(nestLevel === 0) {
+                    return i;
+                }
+            }
+            else if(tokens[i].type === unnester) {
+                nestLevel--;
             }
         }
         return tokens.length -1;
@@ -185,12 +263,18 @@ export class Tokenizer {
             case '-':
             case '*':
             case '/':
+            case '<':
+            case '>':
                 type = TokenType.BinaryOperator; break;
             case '!':
             case '~':
                 type = TokenType.UnaryOperator; break;
             case '=':
                 type = TokenType.Equals; break;
+            case '?':
+                type = TokenType.QuestionMark; break;
+            case ':':
+                type = TokenType.Colon; break;
             default:
                 throw new Error(`Unknown symbol: ${this.currentChar} at position ${this.position}`);
         }
