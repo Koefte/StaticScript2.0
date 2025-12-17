@@ -41,7 +41,7 @@ export class Parser{
         }
     }
 
-    public static getType(node: Node): string {
+    public static getType(node: Node,variables:VariableDecNode[] = []): string {
         switch(node.type){
             case 'Literal':
                 const literalNode = node as LiteralNode;
@@ -55,13 +55,40 @@ export class Parser{
                     return 'boolean';
                 }
                 break;
+            case 'InlineFunction':
+                const funcNode = node as InlineFunctionNode;
+                return `(${funcNode.inputTypes.join(',')}) => ${funcNode.returnType}`;
             case 'Identifier':
-                // In a full implementation, we would look up the identifier in a symbol table
-                return 'unknown';
+                const identifierNode = node as IdentifierNode;
+                for(let variable of variables){
+                    if(variable.value === identifierNode.value){
+                        return variable.varType;
+                    }
+                }
+                throw new Error(`Undefined identifier: ${identifierNode.value}`);
+            case 'FunctionCall':
+                const call = node as FunctionCallNode;
+                const calleeType = this.getType(call.func, variables);
+                const match = /^\((.*)\)\s*=>\s*(.+)$/.exec(calleeType);
+                if(!match){
+                    throw new Error(`Cannot call non-function type ${calleeType}`);
+                }
+                const paramTypes = match[1].trim().length ? match[1].split(',') : [];
+                const returnType = match[2];
+                if(call.arguments.length !== paramTypes.length){
+                    throw new Error(`Argument count mismatch: expected ${paramTypes.length}, got ${call.arguments.length}`);
+                }
+                call.arguments.forEach((arg, i) => {
+                    const argType = this.getType(arg, variables);
+                    if(argType !== paramTypes[i]){
+                        throw new Error(`Argument ${i+1} type mismatch: expected ${paramTypes[i]}, got ${argType}`);
+                    }
+                });
+                return returnType;
             case 'BinaryExpression':
                 const binaryNode = node as BinaryExpressionNode;
-                const leftType = this.getType(binaryNode.left);
-                const rightType = this.getType(binaryNode.right);
+                const leftType = this.getType(binaryNode.left, variables);
+                const rightType = this.getType(binaryNode.right, variables);
                 if(binaryNode.operator == '>' || binaryNode.operator == '<' || binaryNode.operator == '>=' || binaryNode.operator == '<='){
                     if(leftType === 'number' && rightType === 'number'){
                         return 'boolean';
@@ -78,12 +105,12 @@ export class Parser{
                 }
             case 'UnaryExpression':
                 const unaryNode = node as UnaryExpressionNode;
-                return this.getType(unaryNode.argument);
+                return this.getType(unaryNode.argument, variables);
             case 'TernaryExpression':
                 const ternaryNode = node as TernaryNode;
-                const condType = this.getType(ternaryNode.condition);
-                const trueType = this.getType(ternaryNode.trueExpr);
-                const falseType = this.getType(ternaryNode.falseExpr);
+                const condType = this.getType(ternaryNode.condition, variables);
+                const trueType = this.getType(ternaryNode.trueExpr, variables);
+                const falseType = this.getType(ternaryNode.falseExpr, variables);
                 if(condType !== 'boolean'){
                     throw new Error(`Condition of ternary expression must be boolean, got ${condType}`);
                 }
@@ -115,6 +142,14 @@ export class Parser{
                 this.print((node as TernaryNode).trueExpr, newIndent);
                 this.print((node as TernaryNode).falseExpr, newIndent);
                 break;
+            case 'InlineFunction':
+                (node as InlineFunctionNode).parameters.forEach(param => this.print(param, newIndent));
+                this.print((node as InlineFunctionNode).body, newIndent);
+                break;
+            case 'FunctionCall':
+                this.print((node as FunctionCallNode).func, newIndent);
+                (node as FunctionCallNode).arguments.forEach(arg => this.print(arg, newIndent));
+                break;
             case 'BinaryExpression':
                 this.print((node as BinaryExpressionNode).left, newIndent); 
                 this.print((node as BinaryExpressionNode).right, newIndent);
@@ -143,7 +178,6 @@ export class Parser{
     }
 
     private parseExpression(tokens: Token[]): Node{
-        // Check for ternary operator
         let pos = 0;
         while(pos < tokens.length) {
             let currentToken = tokens[pos];
@@ -168,9 +202,126 @@ export class Parser{
                     falseExpr: falseExpr
                 } as TernaryNode;
             }
+            if(currentToken.type == TokenType.Oparen){
+                const closeIndex = this.findMatchingCloseParen(tokens, pos);
+                if(closeIndex !== -1 && pos > 0){
+                    let func: Node;
+                    try{
+                        func = this.parseFunction(tokens.slice(0, pos));
+                    }catch{
+                        // Not a callable callee; continue scanning
+                        pos++;
+                        continue;
+                    }
+                    const argsTokens = tokens.slice(pos + 1, closeIndex);
+                    const args: Node[] = [];
+                    let argStart = 0;
+                    let nest = 0;
+                    for(let i = 0; i < argsTokens.length; i++) {
+                        if(argsTokens[i].type === TokenType.Oparen){
+                            nest++;
+                        }
+                        else if(argsTokens[i].type === TokenType.Cparen){
+                            nest--;
+                        }
+                        else if(argsTokens[i].type == TokenType.Comma && nest === 0){
+                            if(i > argStart){
+                                args.push(this.parseExpression(argsTokens.slice(argStart, i)));
+                            }
+                            else{
+                                // allow empty segment for safety; skip
+                            }
+                            argStart = i + 1;
+                        }
+                    }
+                    if(argStart < argsTokens.length) {
+                        args.push(this.parseExpression(argsTokens.slice(argStart)));
+                    } else if(argsTokens.length === 0){
+                        // zero-arg call
+                    }
+                    return {
+                        type: 'FunctionCall',
+                        func: func,
+                        arguments: args
+                    } as FunctionCallNode;
+                }
+            }
+           
             pos++;
         }
         return this.parseExpressionInner(tokens);
+    }
+
+    private parseFunction(tokens: Token[]): Node {
+        if(tokens.length == 0){
+            throw new Error('Cannot parse function from empty token list');
+        }
+        if(tokens.length == 1 && tokens[0].type == TokenType.Identifier){
+            return {
+                type: 'Identifier',
+                value: tokens[0].value
+            } as IdentifierNode;
+        }
+        Tokenizer.expect(tokens[0]).toBe(TokenType.Oparen);
+        Tokenizer.expect(tokens[tokens.length -1]).toBe(TokenType.Cparen);
+        let pos = 1;
+        while(pos < tokens.length - 1) {
+            let currentToken = tokens[pos];
+            if(currentToken.type == TokenType.Arrow){
+                const paramsTokens = tokens.slice(1, pos);
+                const bodyTokens = tokens.slice(pos + 1, tokens.length - 1);
+                const parameters = this.parseFunctionParameters(paramsTokens);
+                const inputTypes = parameters.map(param => param.varType);
+                const returnType = Parser.getType(this.parseExpression(bodyTokens),parameters);
+                return {
+                    type: 'InlineFunction',
+                    parameters: parameters,
+                    inputTypes: inputTypes,
+                    returnType: returnType,
+                    body: this.parseExpression(bodyTokens)
+                } as InlineFunctionNode;
+            }
+            pos++;
+        }
+        throw new Error('Failed to parse function from tokens: ' + Tokenizer.toString(tokens));
+    }
+                
+
+    private parseFunctionParameters(tokens: Token[]): VariableDecNode[] {
+        const params: VariableDecNode[] = [];
+        let pos = 0;
+        while(pos < tokens.length) {
+            let currentToken = tokens[pos];
+            if(currentToken.type == TokenType.Identifier) {
+                let varType = currentToken.value;
+                pos++;
+                if(pos < tokens.length && tokens[pos].type == TokenType.Identifier) {
+                    let varName = tokens[pos].value;
+                    params.push({
+                        type: 'VariableDecNode',
+                        varType: varType,
+                        value: varName
+                    } as VariableDecNode);
+                }
+            }
+            pos++;
+        }
+        return params;
+    }
+
+    private findMatchingCloseParen(tokens: Token[], openIndex: number): number {
+        let nest = 0;
+        for(let i = openIndex; i < tokens.length; i++){
+            if(tokens[i].type === TokenType.Oparen){
+                nest++;
+            } else if(tokens[i].type === TokenType.Cparen){
+                nest--;
+                if(nest === 0){
+                    return i;
+                }
+            }
+        }
+        return -1;
     }
 
     private parseExpressionInner(tokens: Token[]): Node {
@@ -266,6 +417,21 @@ export interface VariableDecNode extends Node {
     varType: string;
     value: string;
 }
+
+export interface InlineFunctionNode extends Node {
+    type: 'InlineFunction';
+    parameters: VariableDecNode[];
+    inputTypes: string[];
+    returnType: string;
+    body: Node;
+}
+
+export interface FunctionCallNode extends Node{
+    type: 'FunctionCall';
+    func: Node;
+    arguments: Node[];
+}
+
 
 
 export interface TernaryNode extends Node {

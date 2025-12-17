@@ -17,6 +17,7 @@ export enum TokenType {
     BinaryOperator,
     UnaryOperator,
     Equals,
+    Arrow,
     EOF
 }
 
@@ -100,7 +101,12 @@ export class Tokenizer {
                     value += this.currentChar;
                     this.advance();
                     this.tokens.push({ type: TokenType.BinaryOperator, value, position: start, line: startLine });
-                } else {
+                }else if(char == '>') {
+                    value += this.currentChar;
+                    this.advance();
+                    this.tokens.push({ type: TokenType.Arrow, value, position: start, line: startLine });
+                }
+                 else {
                     this.tokens.push({ type: TokenType.Equals, value, position: start, line: startLine });
                 }
             }
@@ -147,6 +153,8 @@ export class Tokenizer {
         this.tokens.push({ type: TokenType.EOF, value: "", position: this.position, line: this.line });
         return this.tokens;
     }
+
+
 
     public static toString(tokens: Token[]): string {
         return tokens.map(token => `Type: ${TokenType[token.type]}, Value: "${token.value}", Position: ${token.position}, Line: ${token.line}`).join('\n');
