@@ -260,16 +260,6 @@ export class Parser{
                     line: currentToken.line
                 } as BinaryExpression; 
             }
-            if(currentToken.type == TokenType.Dot){
-                const object = this.parseExpression(tokens.slice(0, pos));
-                const property = this.parseExpression(tokens.slice(pos +1));
-                return {
-                    type: 'MemberExpression',
-                    object: object,
-                    property: property,
-                    line: currentToken.line
-                } as MemberExpression;
-            }
             else if(currentToken.type == TokenType.UnaryOperator){
                 const rhs = this.parseExpression(tokens.slice(pos +1));
                 return {
@@ -280,7 +270,25 @@ export class Parser{
             }
             pos++;
         }
-        throw new Error('Failed to parse expression from tokens: ' + Tokenizer.toString(tokens));
+        return this.parseMemberExpression(tokens);
+    }
+
+    private parseMemberExpression(tokens: Token[]): Expression {
+        let pos = 0;
+        while(pos < tokens.length) {
+            let currentToken = tokens[pos];
+            if(currentToken.type == TokenType.Dot){
+                const object = this.parseExpression(tokens.slice(0, pos));
+                const property = this.parseExpression(tokens.slice(pos +1));
+                return {
+                    type: 'MemberExpression',
+                    object: object,
+                    property: property,
+                } as MemberExpression;
+            }
+            pos++;
+        }
+        throw new Error('Unable to parse expression: ' + Tokenizer.toString(tokens));
     }
 
 
