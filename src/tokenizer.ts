@@ -1,4 +1,4 @@
-import { RootNode } from "./parser";
+
 
 export enum TokenType {
     Identifier,
@@ -154,6 +154,43 @@ export class Tokenizer {
         return this.tokens;
     }
 
+    public static splitByTopLevelCommas(tokens: Token[]): Token[][] {
+        const result: Token[][] = [];
+        let currentChunk: Token[] = [];
+        let nestLevel = 0;
+        for(const token of tokens) {
+            if(token.type === TokenType.Oparen || token.type === TokenType.Obrace) {
+                nestLevel++;
+            }
+            else if(token.type === TokenType.Cparen || token.type === TokenType.Cbrace) {
+                nestLevel--;
+            }
+            if(token.type === TokenType.Comma && nestLevel === 0) {
+                result.push(currentChunk);
+                currentChunk = [];
+            } else {
+                currentChunk.push(token);
+            }
+        }
+        if(currentChunk.length > 0) {
+            result.push(currentChunk);
+        }
+        return result;
+    }
+
+    public static findMatchingCloseParen(tokens: Token[], openIndex: number,nest:number = 0): number {
+        for(let i = openIndex; i < tokens.length; i++){
+            if(tokens[i].type === TokenType.Oparen){
+                nest++;
+            } else if(tokens[i].type === TokenType.Cparen){
+                nest--;
+                if(nest === 0){
+                    return i;
+                }
+            }
+        }
+        return -1;
+    }
 
 
     public static toString(tokens: Token[]): string {
