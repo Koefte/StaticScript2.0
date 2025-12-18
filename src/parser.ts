@@ -26,6 +26,12 @@ interface UnaryExpression extends Expression {
     arg: Expression;
 }
 
+interface VariableExpression extends Expression {
+    type: 'VariableExpression';
+    varType: string;
+    name: string;
+}
+
 interface CallableExpression extends Expression {
     type: 'CallableExpression';
     callee: Expression;
@@ -71,7 +77,7 @@ export class Parser{
             else if(token.type == TokenType.Arrow && currentExpr == null){
                 const argsTokens = tokens.slice(0, pos);
                 const bodyTokens = tokens.slice(pos+1);
-                const argExprs = Tokenizer.splitByTopLevelCommas(argsTokens.slice(1, argsTokens.length -1)).map(argTokens => this.parseExpression(argTokens));
+                const argExprs = Tokenizer.splitByTopLevelCommas(argsTokens).map(argTokens => this.parseArg(argTokens));
                 const lambdaExpression: LambdaExpression = {
                     type: 'LambdaExpression',
                     args: {
@@ -106,6 +112,15 @@ export class Parser{
         return currentExpr;
     }
 
+
+    private parseArg(tokens: Token[]): VariableExpression{
+        let [typeToken,varToken] = Tokenizer.expect(...tokens).toBe(TokenType.Identifier,TokenType.Identifier).get();
+        return {
+            type: 'VariableExpression',
+            varType: typeToken.value,
+            name: varToken.value
+        } as VariableExpression;
+    }
     
     private parseExpressionTernary(tokens: Token[]): Expression {
         let pos = 0;
@@ -221,6 +236,9 @@ export class Parser{
             case 'LambdaExpression':
                 this.print((node as LambdaExpression).args, newIndent);
                 this.print((node as LambdaExpression).body, newIndent);
+                break;
+            case 'VariableExpression':
+                console.log(indent + '  ' + (node as VariableExpression).varType + ' ' + (node as VariableExpression).name);
                 break;
             default:
                 throw new Error('Unknown node type: ' + (node as any).type);

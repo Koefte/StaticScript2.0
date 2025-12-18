@@ -12,7 +12,7 @@ const targetPath = path.resolve(process.cwd(), inputArg);
 
 function runFile(filePath: string){
 	const inputCode = fs.readFileSync(filePath, 'utf-8');
-	const tokenizer = new Tokenizer("(number x => x + 1)(5)");
+	const tokenizer = new Tokenizer("(number x => x > 0 ? x : 0)(5)");
 	const tokens = tokenizer.tokenize();
 	const parser = new Parser();
 	const ast = parser.parseExpression(tokens);
