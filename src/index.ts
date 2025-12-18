@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { Tokenizer , TokenType} from './tokenizer.js';
 import { Parser } from './parser.js';
+import { Scope } from './scope.js';
 
 const inputArg = process.argv[2];
 if (!inputArg) {
@@ -14,6 +15,7 @@ function runFile(filePath: string){
 	const inputCode = fs.readFileSync(filePath, 'utf-8');
 	const tokenizer = new Tokenizer(inputCode);
 	const tokens = tokenizer.tokenize();
+	const scope = new Scope(tokens);
 	const parser = new Parser();
 	const test = parser.parseExpression(tokens);
 	Parser.print(test);

@@ -209,6 +209,20 @@ export class Tokenizer {
         return -1;
     }
 
+    public static findMatchingCBrace(tokens: Token[], openIndex: number, nest: number = 0): number {
+        for(let i = openIndex; i < tokens.length; i++){
+            if(tokens[i].type === TokenType.Obrace){
+                nest++;
+            } else if(tokens[i].type === TokenType.Cbrace){
+                nest--;
+                if(nest === 0){
+                    return i;
+                }
+            }
+        }
+        return -1;
+    }
+
 
     public static toString(tokens: Token[]): string {
         return tokens.map(token => `Type: ${TokenType[token.type]}, Value: "${token.value}", Position: ${token.position}, Line: ${token.line}`).join('\n');

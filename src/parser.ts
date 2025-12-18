@@ -4,6 +4,7 @@ import { Token , TokenType , Tokenizer } from './tokenizer.js';
 
 interface Expression {
     type: string;
+    line: number;
 }
 
 interface TernaryExpression extends Expression {
@@ -97,9 +98,11 @@ export class Parser{
                         type: 'CallableExpression',
                         callee: {
                             type: 'IdentifierExpression',
-                            value: tokens[pos-1].value
+                            value: tokens[pos-1].value,
+                            line: tokens[pos-1].line
                         } as IdentifierExpression,
-                        args: this.parseExpression(tokens.slice(pos + 1, closeIndex)) as ArgumentExpression
+                        args: this.parseExpression(tokens.slice(pos + 1, closeIndex)) as ArgumentExpression,
+                        line: tokens[pos-1].line
                     } as CallableExpression;
                 }
                 else if(closeIndex !== -1){
@@ -114,9 +117,11 @@ export class Parser{
                     type: 'LambdaExpression',
                     args: {
                         type: 'ArgumentExpression',
-                        args: argExprs
+                        args: argExprs,
+                        line: argsTokens.length > 0 ? argsTokens[0].line : token.line
                     },
-                    body: this.parseExpression(bodyTokens)
+                    body: this.parseExpression(bodyTokens),
+                    line: token.line
                 };
                 return lambdaExpression;
                 
@@ -130,12 +135,14 @@ export class Parser{
                     const argsExpr = Tokenizer.splitByTopLevelCommas(tokens.slice(pos + 1, closeIndex)).map(argTokens => this.parseExpression(argTokens));
                     const argsExpression: ArgumentExpression = {
                         type: 'ArgumentExpression',
-                        args: argsExpr
+                        args: argsExpr,
+                        line: token.line
                     };
                     currentExpr = {
                         type: 'CallableExpression',
                         callee: currentExpr,
-                        args: argsExpression
+                        args: argsExpression,
+                        line: token.line
                     } as CallableExpression;
                 }
             }
@@ -149,7 +156,8 @@ export class Parser{
                     currentExpr = {
                         type: 'ArrayAccessExpression',
                         array: currentExpr,
-                        index: indexExpr
+                        index: indexExpr,
+                        line: token.line
                     } as ArrayAccessExpression;
                 }
             }
@@ -163,12 +171,14 @@ export class Parser{
                 }
                 const propertyExpr: IdentifierExpression = {
                     type: 'IdentifierExpression',
-                    value: propToken.value
+                    value: propToken.value,
+                    line: propToken.line
                 };
                 currentExpr = {
                     type: 'MemberExpression',
                     object: currentExpr,
-                    property: propertyExpr
+                    property: propertyExpr,
+                    line: token.line
                 } as MemberExpression;
                 pos++; // skip the property token we just consumed
             }
@@ -200,7 +210,8 @@ export class Parser{
         return {
             type: 'VariableExpression',
             varType: typeToken.value,
-            name: varToken.value
+            name: varToken.value,
+            line: typeToken.line
         } as VariableExpression;
     }
     
@@ -224,7 +235,8 @@ export class Parser{
                     type: 'TernaryExpression',
                     condition: condition,
                     trueExpr: trueExpr,
-                    falseExpr: falseExpr
+                    falseExpr: falseExpr,
+                    line: currentToken.line
                 } as TernaryExpression;
             }
             pos++;
@@ -288,6 +300,7 @@ export class Parser{
                 return {
                     type: 'IdentifierExpression',
                     value: tokens[0].value,
+                    line: tokens[0].line
                 } as IdentifierExpression;
             }
             else if (tokens[0].type == TokenType.Number || tokens[0].type == TokenType.String || tokens[0].type == TokenType.Boolean) {
@@ -326,6 +339,7 @@ export class Parser{
                     type: 'UnaryExpression',
                     operator: currentToken.value,
                     arg: rhs,
+                    line: currentToken.line
                 } as UnaryExpression; 
             }
             pos++;
@@ -333,7 +347,8 @@ export class Parser{
         console.log("HÖY" + Tokenizer.toString(tokens))
         return {
             type: 'ArgumentExpression',
-            args: Tokenizer.splitByTopLevelCommas(tokens).map(argTokens => this.parseExpression(argTokens))
+            args: Tokenizer.splitByTopLevelCommas(tokens).map(argTokens => this.parseExpression(argTokens)),
+            line: tokens.length > 0 ? tokens[0].line : 1
         } as ArgumentExpression;
     }
 
