@@ -32,6 +32,18 @@ interface MemberExpression extends Expression {
     property: Expression;
 }
 
+interface ArrayAccessExpression extends Expression {
+    type: 'ArrayAccessExpression';
+    array: Expression;
+    index: Expression;
+}
+
+interface ArrayAccessExpression extends Expression {
+    type: 'ArrayAccessExpression';
+    array: Expression;
+    index: Expression;
+}
+
 
 interface VariableExpression extends Expression {
     type: 'VariableExpression';
@@ -80,8 +92,18 @@ export class Parser{
             const token = tokens[pos];
             if(token.type == TokenType.Oparen && currentExpr == null){
                 const closeIndex = Tokenizer.findMatchingCloseParen(tokens, pos);
-                if(closeIndex !== -1){
-                    currentExpr = this.parseExpression(tokens.slice(pos + 1, closeIndex));
+                if(tokens[pos-1].type == TokenType.Identifier && closeIndex !== -1){
+                    currentExpr = {
+                        type: 'CallableExpression',
+                        callee: {
+                            type: 'IdentifierExpression',
+                            value: tokens[pos-1].value
+                        } as IdentifierExpression,
+                        args: this.parseExpression(tokens.slice(pos + 1, closeIndex)) as ArgumentExpression
+                    } as CallableExpression;
+                }
+                else if(closeIndex !== -1){
+                    currentExpr = this.parseExpression(tokens.slice(pos + 1, closeIndex)); // Lambda function
                 }
             }
             else if(token.type == TokenType.Arrow && currentExpr == null){
@@ -99,7 +121,10 @@ export class Parser{
                 return lambdaExpression;
                 
             }
-            else if(token.type == TokenType.Oparen && currentExpr != null){
+            else if(token.type == TokenType.Oparen && pos > 0){
+                if(currentExpr == null){
+                    currentExpr = this.parseExpression(tokens.slice(0, pos));
+                }
                 const closeIndex = Tokenizer.findMatchingCloseParen(tokens, pos);
                 if(closeIndex !== -1){
                     const argsExpr = Tokenizer.splitByTopLevelCommas(tokens.slice(pos + 1, closeIndex)).map(argTokens => this.parseExpression(argTokens));
@@ -114,6 +139,39 @@ export class Parser{
                     } as CallableExpression;
                 }
             }
+            else if(token.type == TokenType.OBracket && pos > 0){
+                if(currentExpr == null){
+                    currentExpr = this.parseExpression(tokens.slice(0, pos));
+                }
+                const closeIndex = Tokenizer.findMatchingCloseBracket(tokens, pos);
+                if(closeIndex !== -1){
+                    const indexExpr = this.parseExpression(tokens.slice(pos + 1, closeIndex));
+                    currentExpr = {
+                        type: 'ArrayAccessExpression',
+                        array: currentExpr,
+                        index: indexExpr
+                    } as ArrayAccessExpression;
+                }
+            }
+            else if (token.type == TokenType.Dot && pos > 0){
+                if(currentExpr == null){
+                    currentExpr = this.parseExpression(tokens.slice(0, pos));
+                }
+                const propToken = tokens[pos + 1];
+                if(!propToken || propToken.type !== TokenType.Identifier){
+                    throw new Error('Member access requires identifier after dot');
+                }
+                const propertyExpr: IdentifierExpression = {
+                    type: 'IdentifierExpression',
+                    value: propToken.value
+                };
+                currentExpr = {
+                    type: 'MemberExpression',
+                    object: currentExpr,
+                    property: propertyExpr
+                } as MemberExpression;
+                pos++; // skip the property token we just consumed
+            }
             pos++;
         }
         if(currentExpr == null){
@@ -125,9 +183,9 @@ export class Parser{
     private hasTopLevelTernary(tokens: Token[]): boolean {
         let nestLevel = 0;
         for (const token of tokens) {
-            if (token.type === TokenType.Oparen || token.type === TokenType.Obrace) {
+            if (token.type === TokenType.Oparen || token.type === TokenType.Obrace || token.type === TokenType.OBracket) {
                 nestLevel++;
-            } else if (token.type === TokenType.Cparen || token.type === TokenType.Cbrace) {
+            } else if (token.type === TokenType.Cparen || token.type === TokenType.Cbrace || token.type === TokenType.CBracket) {
                 nestLevel--;
             } else if (token.type === TokenType.QuestionMark && nestLevel === 0) {
                 return true;
@@ -215,6 +273,8 @@ export class Parser{
                 return 'function';
             case 'CallableExpression':
                 return 'unknown';
+            case 'ArrayAccessExpression':
+                return 'unknown';
             case 'IdentifierExpression':
                 return 'unknown';
             default:
@@ -270,28 +330,14 @@ export class Parser{
             }
             pos++;
         }
-        return this.parseMemberExpression(tokens);
+        console.log("HÖY" + Tokenizer.toString(tokens))
+        return {
+            type: 'ArgumentExpression',
+            args: Tokenizer.splitByTopLevelCommas(tokens).map(argTokens => this.parseExpression(argTokens))
+        } as ArgumentExpression;
     }
 
-    private parseMemberExpression(tokens: Token[]): Expression {
-        let pos = 0;
-        while(pos < tokens.length) {
-            let currentToken = tokens[pos];
-            if(currentToken.type == TokenType.Dot){
-                const object = this.parseExpression(tokens.slice(0, pos));
-                const property = this.parseExpression(tokens.slice(pos +1));
-                return {
-                    type: 'MemberExpression',
-                    object: object,
-                    property: property,
-                } as MemberExpression;
-            }
-            pos++;
-        }
-        throw new Error('Unable to parse expression: ' + Tokenizer.toString(tokens));
-    }
-
-
+   
     public static print(node: Expression , indent: string = ''): void {
         console.log(indent + node.type);
         const newIndent = indent + '  ';
@@ -333,6 +379,10 @@ export class Parser{
                 break;
             case 'VariableExpression':
                 console.log(indent + '  ' + (node as VariableExpression).varType + ' ' + (node as VariableExpression).name);
+                break;
+            case 'ArrayAccessExpression':
+                this.print((node as ArrayAccessExpression).array, newIndent);
+                this.print((node as ArrayAccessExpression).index, newIndent);
                 break;
             default:
                 throw new Error('Unknown node type: ' + (node as any).type);

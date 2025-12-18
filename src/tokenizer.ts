@@ -10,6 +10,8 @@ export enum TokenType {
     Cparen,
     Obrace,
     Cbrace,
+    OBracket,
+    CBracket,
     Comma,
     Semicolon,
     Dot,
@@ -160,10 +162,10 @@ export class Tokenizer {
         let currentChunk: Token[] = [];
         let nestLevel = 0;
         for(const token of tokens) {
-            if(token.type === TokenType.Oparen || token.type === TokenType.Obrace) {
+            if(token.type === TokenType.Oparen || token.type === TokenType.Obrace || token.type === TokenType.OBracket) {
                 nestLevel++;
             }
-            else if(token.type === TokenType.Cparen || token.type === TokenType.Cbrace) {
+            else if(token.type === TokenType.Cparen || token.type === TokenType.Cbrace || token.type === TokenType.CBracket) {
                 nestLevel--;
             }
             if(token.type === TokenType.Comma && nestLevel === 0) {
@@ -184,6 +186,20 @@ export class Tokenizer {
             if(tokens[i].type === TokenType.Oparen){
                 nest++;
             } else if(tokens[i].type === TokenType.Cparen){
+                nest--;
+                if(nest === 0){
+                    return i;
+                }
+            }
+        }
+        return -1;
+    }
+
+    public static findMatchingCloseBracket(tokens: Token[], openIndex: number, nest: number = 0): number {
+        for(let i = openIndex; i < tokens.length; i++){
+            if(tokens[i].type === TokenType.OBracket){
+                nest++;
+            } else if(tokens[i].type === TokenType.CBracket){
                 nest--;
                 if(nest === 0){
                     return i;
@@ -303,6 +319,8 @@ export class Tokenizer {
             case ')': type = TokenType.Cparen; break;
             case '{': type = TokenType.Obrace; break;
             case '}': type = TokenType.Cbrace; break;
+            case '[': type = TokenType.OBracket; break;
+            case ']': type = TokenType.CBracket; break;
             case ',': type = TokenType.Comma; break;
             case ';': type = TokenType.Semicolon; break;
             case '.': type = TokenType.Dot; break;
