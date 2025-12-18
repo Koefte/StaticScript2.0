@@ -26,6 +26,13 @@ interface UnaryExpression extends Expression {
     arg: Expression;
 }
 
+interface MemberExpression extends Expression {
+    type: 'MemberExpression';
+    object: Expression;
+    property: Expression;
+}
+
+
 interface VariableExpression extends Expression {
     type: 'VariableExpression';
     varType: string;
@@ -253,6 +260,16 @@ export class Parser{
                     line: currentToken.line
                 } as BinaryExpression; 
             }
+            if(currentToken.type == TokenType.Dot){
+                const object = this.parseExpression(tokens.slice(0, pos));
+                const property = this.parseExpression(tokens.slice(pos +1));
+                return {
+                    type: 'MemberExpression',
+                    object: object,
+                    property: property,
+                    line: currentToken.line
+                } as MemberExpression;
+            }
             else if(currentToken.type == TokenType.UnaryOperator){
                 const rhs = this.parseExpression(tokens.slice(pos +1));
                 return {
@@ -280,6 +297,10 @@ export class Parser{
                 console.log(indent + (node as BinaryExpression).operator);
                 this.print((node as BinaryExpression).left, newIndent); 
                 this.print((node as BinaryExpression).right, newIndent);
+                break;
+            case 'MemberExpression':
+                this.print((node as MemberExpression).object, newIndent);
+                this.print((node as MemberExpression).property, newIndent);
                 break;
             case 'UnaryExpression':
                 this.print((node as UnaryExpression).arg, newIndent);

@@ -12,6 +12,7 @@ export enum TokenType {
     Cbrace,
     Comma,
     Semicolon,
+    Dot,
     QuestionMark,
     Colon,
     BinaryOperator,
@@ -304,6 +305,7 @@ export class Tokenizer {
             case '}': type = TokenType.Cbrace; break;
             case ',': type = TokenType.Comma; break;
             case ';': type = TokenType.Semicolon; break;
+            case '.': type = TokenType.Dot; break;
             case '+':
             case '-':
             case '*':
