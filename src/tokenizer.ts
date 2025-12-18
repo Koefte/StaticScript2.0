@@ -203,7 +203,7 @@ export class Tokenizer {
                 return i;
             }
         }
-        return -1;
+        return 0;
     }
 
 

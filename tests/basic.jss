@@ -1,1 +1,1 @@
-number y = ((number x) => x > 0 ? x : x)(2)
+(number x => x > 0 ? x : x)(2)

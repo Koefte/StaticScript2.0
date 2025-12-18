@@ -64,6 +64,9 @@ export class Parser{
    
 
     parseExpression(tokens:Token[]): Expression {
+        if (this.hasTopLevelTernary(tokens)) {
+            return this.parseExpressionTernary(tokens);
+        }
         let pos = 0;
         let currentExpr: Expression | null = null;
         while(pos < tokens.length){
@@ -107,13 +110,27 @@ export class Parser{
             pos++;
         }
         if(currentExpr == null){
-            return this.parseExpressionTernary(tokens);
+            return this.parseExpressionOps(tokens);
         }
         return currentExpr;
     }
 
+    private hasTopLevelTernary(tokens: Token[]): boolean {
+        let nestLevel = 0;
+        for (const token of tokens) {
+            if (token.type === TokenType.Oparen || token.type === TokenType.Obrace) {
+                nestLevel++;
+            } else if (token.type === TokenType.Cparen || token.type === TokenType.Cbrace) {
+                nestLevel--;
+            } else if (token.type === TokenType.QuestionMark && nestLevel === 0) {
+                return true;
+            }
+        }
+        return false;
+    }
 
-    private parseArg(tokens: Token[]): VariableExpression{
+
+    parseArg(tokens: Token[]): VariableExpression{
         let [typeToken,varToken] = Tokenizer.expect(...tokens).toBe(TokenType.Identifier,TokenType.Identifier).get();
         return {
             type: 'VariableExpression',
@@ -149,6 +166,54 @@ export class Parser{
         }
         return this.parseExpressionOps(tokens);
     }   
+
+    public static checkTypes(lhs: Expression, rhs: Expression): void {
+        if(this.getType(lhs) != this.getType(rhs)){
+            throw new Error(`Type mismatch: cannot assign ${this.getType(rhs)} to ${this.getType(lhs)}`);
+        }
+    }
+
+    public static getType(expr: Expression): string {
+        switch (expr.type) {
+            case 'LiteralExpression':
+                const litExpr = expr as LiteralExpression;
+                return typeof litExpr.value;
+            case 'BinaryExpression':
+                const rhsType = this.getType((expr as BinaryExpression).right);
+                const lhsType = this.getType((expr as BinaryExpression).left);
+                if(rhsType != lhsType){
+                    throw new Error(`Type mismatch in binary expression: ${lhsType} ${ (expr as BinaryExpression).operator } ${rhsType}`);
+                }
+                const binaryExpr = expr as BinaryExpression;
+                if(binaryExpr.operator == '=='){
+                    return 'boolean';
+                }
+                if(binaryExpr.operator == '>' || binaryExpr.operator == '<' || binaryExpr.operator == '>=' || binaryExpr.operator == '<='){
+                    if(lhsType != 'number'){
+                        throw new Error(`Operator ${binaryExpr.operator} requires number types, got ${lhsType}`);
+                    }
+                    return 'boolean';
+                }
+                return lhsType;
+            case 'UnaryExpression':
+                return this.getType((expr as UnaryExpression).arg);
+            case 'TernaryExpression':
+                const trueType = this.getType((expr as TernaryExpression).trueExpr);
+                const falseType = this.getType((expr as TernaryExpression).falseExpr);
+                if(trueType != falseType){
+                    throw new Error(`Type mismatch in ternary expression: ${trueType} ? ... : ${falseType}`);
+                }
+                return trueType;
+            case 'LambdaExpression':
+                return 'function';
+            case 'CallableExpression':
+                return 'unknown';
+            case 'IdentifierExpression':
+                return 'unknown';
+            default:
+                return 'unknown';
+        }
+    }
 
     private parseExpressionOps(tokens: Token[]): Expression {
         if(tokens.length == 1 || (tokens.length == 2 && tokens[1].type == TokenType.EOF)) {           

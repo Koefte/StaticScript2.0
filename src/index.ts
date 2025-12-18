@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { Tokenizer } from './tokenizer.js';
+import { Tokenizer , TokenType} from './tokenizer.js';
 import { Parser } from './parser.js';
 
 const inputArg = process.argv[2];
@@ -12,12 +12,12 @@ const targetPath = path.resolve(process.cwd(), inputArg);
 
 function runFile(filePath: string){
 	const inputCode = fs.readFileSync(filePath, 'utf-8');
-	const tokenizer = new Tokenizer("(number x => x > 0 ? x : 0)(5)");
+	const tokenizer = new Tokenizer(inputCode);
 	const tokens = tokenizer.tokenize();
 	const parser = new Parser();
-	const ast = parser.parseExpression(tokens);
+	const test = parser.parseExpression(tokens);
+	Parser.print(test);
 	console.log(`\n=== ${path.relative(process.cwd(), filePath)} ===`);
-	Parser.print(ast);
 	//Parser.checkTypes(ast);
 }
 
